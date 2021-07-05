@@ -1,41 +1,37 @@
 import os
 import time
 
-from modules import *
-from utils.interpolate import *
-from utils.custom_ops import *
+from models import modules
+from .utils.interpolate import *
+from .utils.ops import *
 from utils.data_io import DataLoader, saveSampleImages, saveFinalResults
-import scipy.misc
 
-class CoopNets(object):
-    def __init__(self, num_epochs=200, image_size=64, batch_size=100, nTileRow=12, nTileCol=12, z_size=100,
-                 code_size=100, net_type='object',
-                 d_lr=0.001, g_lr=0.0001, beta1=0.5,
-                 des_step_size=0.002, des_sample_steps=10, des_refsig=0.016,
-                 gen_step_size=0.1, gen_sample_steps=10, gen_refsig=0.3,
+FLAGS = tf.app.flags.FLAGS
+
+class CCoopNetsImg2Img(object):
+    def __init__(self, 
                  src_img_path=None, tgt_img_path=None, category=None,
                  src_test_path=None, tgt_test_path=None, log_step=10,
                  sample_dir='./synthesis', model_dir='./checkpoints', log_dir='./log', test_dir='./test'):
 
-        self.type = net_type
-        self.num_epochs = num_epochs
-        self.batch_size = batch_size
-        self.image_size = image_size
-        self.nTileRow = nTileRow
-        self.nTileCol = nTileCol
-        self.num_chain = nTileRow * nTileCol
-        self.beta1 = beta1
+        self.num_epochs = FLAGS.num_epochs
+        self.batch_size = FLAGS.batch_size
+        self.image_size = FLAGS.image_size
+        self.nTileRow = FLAGS.nTileRow
+        self.nTileCol = FLAGS.nTileCol
+        self.num_chain = self.nTileRow * self.nTileCol
+        self.beta1 = FLAGS.beta1
 
-        self.d_lr = d_lr
-        self.g_lr = g_lr
-        self.delta1 = des_step_size
-        self.sigma1 = des_refsig
-        self.delta2 = gen_step_size
-        self.sigma2 = gen_refsig
-        self.t1 = des_sample_steps
-        self.t2 = gen_sample_steps
+        self.d_lr = FLAGS.d_lr
+        self.g_lr = FLAGS.g_lr
+        self.delta1 = FLAGS.des_step_size
+        self.sigma1 = FLAGS.des_refsig
+        self.delta2 = FLAGS.gen_step_size
+        self.sigma2 = FLAGS.gen_refsig
+        self.t1 = FLAGS.des_sample_steps
+        self.t2 = FLAGS.gen_sample_steps
 
-        self.code_size = code_size
+        self.code_size = FLAGS.code_size
 
         self.src_img_path = src_img_path
         self.tgt_img_path = tgt_img_path
@@ -50,15 +46,15 @@ class CoopNets(object):
         self.model_dir = model_dir
         self.test_dir = test_dir
 
-        self.generator = generator_resnet
-        self.descriptor = descriptor
+        self.generator = getattr(modules, FLAGS.gen_net)
+        self.descriptor = getattr(modules, FLAGS.des_net)
 
         self.z_size = 128
         self.gamma = 0.2
 
-        self.syn = tf.placeholder(shape=[None, self.image_size, self.image_size, 3], dtype=tf.float32, name='syn')
-        self.obs = tf.placeholder(shape=[None, self.image_size, self.image_size, 3], dtype=tf.float32, name='obs')
-        self.condition = tf.placeholder(shape=[None, self.image_size, self.image_size, 3], dtype=tf.float32,
+        self.syn = tf.placeholder(shape=[None, self.image_size, self.image_size, FLAGS.image_nc], dtype=tf.float32, name='syn')
+        self.obs = tf.placeholder(shape=[None, self.image_size, self.image_size, FLAGS.image_nc], dtype=tf.float32, name='obs')
+        self.condition = tf.placeholder(shape=[None, self.image_size, self.image_size, FLAGS.image_nc], dtype=tf.float32,
                                         name='condition')
         self.z = tf.placeholder(shape=[None, self.z_size], dtype=tf.float32, name='z')
 
@@ -111,13 +107,6 @@ class CoopNets(object):
 
         # symbolic langevins
         self.langevin_conditional_descriptor = self.langevin_dynamics_conditional_descriptor(self.syn, self.condition)
-        # self.langevin_conditional_generator = self.langevin_dynamics_conditional_generator(self.z, self.condition)
-
-        # tf.summary.scalar('des_loss', self.des_loss_mean)
-        # tf.summary.scalar('gen_loss', self.gen_loss_mean)
-        # tf.summary.scalar('recon_err', self.recon_err_mean)
-
-        # self.summary_op = tf.summary.merge_all()
 
     def langevin_dynamics_conditional_descriptor(self, syn_arg, condition_arg):
         def cond(i, syn, condition):
@@ -174,13 +163,13 @@ class CoopNets(object):
 
 
         # train
-        for epoch in xrange(self.num_epochs):
+        for epoch in range(self.num_epochs):
             start_time = time.time()
             log = {}
 
             d_loss_epoch, g_loss_epoch, mse_epoch = [], [], []
 
-            for i in xrange(num_batches):
+            for i in range(num_batches):
 
                 index = slice(i * self.batch_size, min(len(train_data), (i + 1) * self.batch_size))
                 src_img, tgt_img = train_data[index]
@@ -267,7 +256,7 @@ class CoopNets(object):
         samples = np.zeros(shape=(len(test_data), self.image_size, self.image_size, 3))
         g_results = np.zeros(shape=(len(test_data), self.image_size, self.image_size, 3))
 
-        for i in xrange(num_batches):
+        for i in range(num_batches):
             index = slice(i * self.batch_size, min(len(test_data), (i + 1) * self.batch_size))
             src_img, tgt_img = test_data[index]
 
@@ -290,52 +279,7 @@ class CoopNets(object):
 
             pred_list = sorted([f for f in os.listdir(self.tgt_test_path) if f.endswith('.png')])
 
-            for i, img in enumerate(samples):
-                min_val = img.min()
-                max_val = img.max()
-                img = (img - min_val) / (max_val - min_val)
-                scipy.misc.imsave(os.path.join(pred_dir, pred_list[i]), img, format="png")
-
-
-
-    def test_multi_chain(self, sess, ckpt, num_syn=3):
-        assert ckpt is not None, 'no checkpoint provided.'
-
-        gen_res = self.generator(self.condition, noise=self.z, reuse=False)
-        obs_res = self.descriptor(self.obs, self.condition, reuse=False)
-        langevin_conditional_descriptor = self.langevin_dynamics_conditional_descriptor(self.syn, self.condition)
-
-        test_data = DataLoader(self.src_test_path, self.tgt_test_path,
-                                img_width=self.image_size, img_height=self.image_size,
-                                low=-1, high=1)
-
-        num_batches = int(math.ceil(len(test_data) / self.batch_size))
-
-        saver = tf.train.Saver()
-
-        # sess.run(tf.global_variables_initializer())
-        saver.restore(sess, ckpt)
-        print('Loading checkpoint {}.'.format(ckpt))
-
-        saveSampleImages(test_data.src_images, "%s/ref_src.png" % self.test_dir, row_num=self.nTileRow, col_num=self.nTileCol)
-        saveSampleImages(test_data.tgt_images, "%s/ref_tgt.png" % self.test_dir, row_num=self.nTileRow, col_num=self.nTileCol)
-        samples = np.random.randn(num_syn, len(test_data), self.image_size, self.image_size, 3)
-        # g_results = np.random.randn(len(test_data), self.image_size, self.image_size, 3)
-
-        for i in xrange(num_batches):
-            index = slice(i * self.batch_size, min(len(test_data), (i + 1) * self.batch_size))
-            src_img, tgt_img = test_data[i * self.batch_size: min(len(test_data), (i + 1) * self.batch_size)]
-
-            for c in xrange(num_syn):
-                z_vec = np.random.normal(size=(len(src_img), self.z_size), scale=1.0)
-                # print(src_img.shape)
-                g_res = sess.run(gen_res, feed_dict={self.condition: src_img, self.z: z_vec})
-                syn = sess.run(langevin_conditional_descriptor,
-                               feed_dict={self.syn: g_res, self.condition: src_img})
-
-                samples[c, index, ...] = syn
-
-        save_dir = self.test_dir + '/final_results'
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-        saveFinalResults('%s/final_results.png' % save_dir, test_data.src_images, test_data.tgt_images, samples)
+            for i, np_arr in enumerate(samples):
+                img = np.clip(np_arr, -1., 1.)
+                img = (img * 127.5 + 127.5).astype(np.uint8)
+                Image.fromarray(img).save(os.path.join(pred_dir, pred_list[i]))

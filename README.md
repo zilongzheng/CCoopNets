@@ -22,7 +22,7 @@ pip install -r requirements.txt
 ```
 
 ### Exp1: Attribute to Image
-- Train mnist data
+- Train [mnist](http://yann.lecun.com/exdb/mnist/) data
 ```
 sh scripts/train_cat2img_mnist.sh --dataroot datasets
 ```
