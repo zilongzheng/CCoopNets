@@ -1,10 +1,16 @@
 import os
 import time
+import math
+import numpy as np
+try:
+    import tensorflow.compat.v1 as tf
+except ImportError:
+    import tensorflow as tf
 
 from models import modules
 from .utils.interpolate import *
 from .utils.ops import *
-from utils.data_io import DataLoader, saveSampleImages, saveFinalResults
+from utils.data_io import saveSampleImages, imsave, numpy2image
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -65,8 +71,8 @@ class CCoopNetsImg2Img(object):
 
         des_net = {}
 
-        obs_res = self.descriptor(self.obs, self.condition, net=des_net, reuse=False)
-        syn_res = self.descriptor(self.syn, self.condition, reuse=True)
+        obs_res = self.descriptor(self.obs, self.condition, net=des_net)
+        syn_res = self.descriptor(self.syn, self.condition)
 
         with open("%s/config" % self.sample_dir, "w") as f:
             for k in self.__dict__:
@@ -114,7 +120,7 @@ class CCoopNetsImg2Img(object):
 
         def body(i, syn, condition):
             noise = tf.random_normal(shape=tf.shape(syn), name='noise')
-            syn_res = self.descriptor(syn, condition, reuse=True)
+            syn_res = self.descriptor(syn, condition)
             grad = tf.gradients(syn_res, syn, name='grad_des')[0]
             syn = syn - 0.5 * self.delta1 * self.delta1 * (syn / self.sigma1 / self.sigma1 - grad)
             return tf.add(i, 1), syn, condition
@@ -142,7 +148,7 @@ class CCoopNetsImg2Img(object):
         # make graph immutable
         tf.get_default_graph().finalize()
 
-        sample_results = np.random.randn(train_data.num_images, train_data.img_height, train_data.img_width, 3)
+        sample_results = np.random.randn(train_data.num_images, train_data.img_size, train_data.img_size, train_data.img_nc)
         saveSampleImages(train_data.src_images, "%s/ref_condition.png" % self.sample_dir,
                          row_num=self.nTileRow, col_num=self.nTileCol)
         saveSampleImages(train_data.tgt_images, "%s/ref_target.png" % self.sample_dir,
@@ -280,6 +286,5 @@ class CCoopNetsImg2Img(object):
             pred_list = sorted([f for f in os.listdir(self.tgt_test_path) if f.endswith('.png')])
 
             for i, np_arr in enumerate(samples):
-                img = np.clip(np_arr, -1., 1.)
-                img = (img * 127.5 + 127.5).astype(np.uint8)
-                Image.fromarray(img).save(os.path.join(pred_dir, pred_list[i]))
+                img = numpy2image(np_arr)
+                imsave(os.path.join(pred_dir, pred_list[i]), img)

@@ -9,6 +9,18 @@ except ImportError:
 from PIL import Image
 from utils.data_io import img2cell
 
+__all__ = [
+    'image_summary',
+    'batch_norm',
+    'instance_norm',
+    'conv2d',
+    'convt2d',
+    'build_residual_block',
+    'fully_connected',
+    'linear'
+]
+
+
 def image_summary(tag, images, row_num=10, col_num=10, margin_syn=2):
     cell_images = img2cell(images, row_num=row_num, col_num=col_num, margin_syn=margin_syn)
     cell_image = cell_images[0]

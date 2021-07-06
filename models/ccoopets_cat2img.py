@@ -72,8 +72,8 @@ class CCoopNetsCat2Img(object):
 
         des_net = {}
 
-        obs_res = self.descriptor(self.obs, self.attr, net=des_net, reuse=False)
-        syn_res = self.descriptor(self.syn, self.attr, reuse=True)
+        obs_res = self.descriptor(self.obs, self.attr, net=des_net)
+        syn_res = self.descriptor(self.syn, self.attr)
 
         with open("%s/config.txt" % self.sample_dir, "w") as f:
             for k in self.__dict__:
@@ -117,7 +117,7 @@ class CCoopNetsCat2Img(object):
 
         def body(i, syn, attr):
             noise = tf.random_normal(shape=tf.shape(syn), name='noise')
-            syn_res = self.descriptor(syn, attr, reuse=True)
+            syn_res = self.descriptor(syn, attr)
             grad = tf.gradients(syn_res, syn, name='grad_des')[0]
             syn = syn - 0.5 * self.delta1 * self.delta1 * (syn / self.sigma1 / self.sigma1 - grad)
             return tf.add(i, 1), syn, attr
@@ -243,8 +243,8 @@ class CCoopNetsCat2Img(object):
 
         gen_res = self.generator(self.attr, self.z)
 
-        obs_res = self.descriptor(self.obs, self.attr, reuse=False)
-        syn_res = self.descriptor(self.syn, self.attr, reuse=True)
+        obs_res = self.descriptor(self.obs, self.attr)
+        syn_res = self.descriptor(self.syn, self.attr)
         langevin_conditional_descriptor = self.langevin_dynamics_conditional_descriptor(self.syn, self.attr)
 
         # labels = np.random.random_integers(0, 9, size=(10000))

@@ -14,7 +14,6 @@ try:
 except ImportError:
     from urlparse import urljoin
 
-IMG_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm']
 start_time = None
 
 def mkdir(path, max_depth=3):
@@ -24,6 +23,24 @@ def mkdir(path, max_depth=3):
 
     if not os.path.exists(path):
         os.mkdir(path)
+
+def imsave(fpath, image):
+    img_dir = os.path.dirname(fpath)
+    os.makedirs(img_dir, exist_ok=True)
+    Image.fromarray(image).save(img_dir)
+
+def numpy2image(np_arr):
+    """
+    [-1, 1] float32 to [0, 255] uint8
+    """
+    return ((np.clip(np_arr, -1., 1.) + 1.) * 127.5).astype(np.uint8)
+
+def image2numpy(img, dtype=np.float32):
+    """
+    [0, 255] uint8 to [-1, 1] float32
+    """
+    return (np.asarray(img, dtype=dtype) - 127.5)  / 127.5
+
 
 def reporthook(count, block_size, total_size):
     global start_time
